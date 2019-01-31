@@ -7,6 +7,7 @@ require (
 	github.com/hashicorp/go-sockaddr v1.0.1 // indirect
 	github.com/hashicorp/serf v0.8.2 // indirect
 	github.com/miekg/dns v1.1.3 // indirect
+	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/go-testing-interface v1.0.0 // indirect
 	github.com/mitchellh/mapstructure v1.1.2 // indirect
 	github.com/pkg/errors v0.8.1
