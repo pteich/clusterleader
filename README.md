@@ -16,7 +16,7 @@ func main() {
 	config := api.DefaultConfig()
 	config.Address = "127.0.0.1:8500"
 	client, err := api.NewClient(config)
-
+ 
 	clusterLeader, err := clusterleader.NewClusterleader(client, "testkey", "localhost", 15*time.Second)
 	if err != nil {
 		log.Fatal(err)
