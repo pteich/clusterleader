@@ -52,7 +52,8 @@ func (dl *DistributedLock) Lock(key string) error {
 		Key:          dl.prefix + "/" + key,
 		Value:        []byte(dl.node),
 		LockTryOnce:  true,
-		LockWaitTime: 1 * time.Second,
+		SessionTTL:   "10s",
+		LockWaitTime: 15 * time.Millisecond,
 	}
 
 	lock, err := dl.consulClient.LockOpts(options)
@@ -60,9 +61,13 @@ func (dl *DistributedLock) Lock(key string) error {
 		return errors.Wrap(err, "could not prepare lock")
 	}
 
-	_, err = lock.Lock(nil)
+	closeChan, err := lock.Lock(nil)
 	if err != nil {
 		return errors.Wrap(err, "could not acquire lock")
+	}
+
+	if closeChan == nil {
+		return errors.New("already locked")
 	}
 
 	dl.mutex.Lock()
@@ -75,15 +80,23 @@ func (dl *DistributedLock) Lock(key string) error {
 // Unlock releases a specific lock
 func (dl *DistributedLock) Unlock(key string) error {
 	dl.mutex.Lock()
+	defer dl.mutex.Unlock()
 	lock, found := dl.locks[key]
 	if !found {
 		return errors.New("lock not found")
 	}
 
-	lock.Unlock()
-	delete(dl.locks, key)
-	lock.Unlock()
+	// unlock and destroy the KV entry
+	err := lock.Unlock()
+	if err != nil {
+		return errors.Wrap(err, "could not unlock")
+	}
+	err = lock.Destroy()
+	if err != nil {
+		return errors.Wrap(err, "could not remove lock")
+	}
 
+	delete(dl.locks, key)
 	return nil
 }
 
@@ -91,7 +104,10 @@ func (dl *DistributedLock) Unlock(key string) error {
 func (dl *DistributedLock) UnlockAll() {
 	dl.mutex.Lock()
 	for _, lock := range dl.locks {
-		lock.Unlock()
+		err := lock.Unlock()
+		if err == nil {
+			lock.Destroy()
+		}
 	}
 	dl.locks = make(map[string]*api.Lock)
 	dl.mutex.Unlock()
