@@ -40,7 +40,7 @@ func NewClusterleader(consulClient *api.Client, key string, node string, waitTim
 
 }
 
-// NewClusterLeaderWithDefaultClient uses a default Consul client (which can also be set using Consul env variables)
+// NewClusterleaderWithDefaultClient uses a default Consul client (which can also be set using Consul env variables)
 func NewClusterleaderWithDefaultClient(key string, node string, waitTime time.Duration) (*Clusterleader, error) {
 
 	dialContext := (&net.Dialer{

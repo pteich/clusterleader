@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// DistributedLock describes a lock
 type DistributedLock struct {
 	mutex        sync.Mutex
 	consulClient *api.Client
