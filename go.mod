@@ -1,4 +1,4 @@
-module clusterleader
+module github.com/pteich/clusterleader
 
 require (
 	github.com/hashicorp/consul v1.4.2
