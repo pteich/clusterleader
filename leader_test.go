@@ -1,6 +1,7 @@
 package clusterleader
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -22,7 +23,7 @@ func TestClusterleader_Election(t *testing.T) {
 	client, err := api.NewClient(config)
 	assert.NoError(t, err)
 
-	clusterLeader, err := NewClusterleader(client, "testkey", "localhost", 15*time.Second)
+	clusterLeader, err := New(client, "testkey", "localhost", 15*time.Second)
 	assert.NoError(t, err)
 
 	go func() {
@@ -31,11 +32,13 @@ func TestClusterleader_Election(t *testing.T) {
 		}
 	}()
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	time.AfterFunc(5*time.Second, func() {
-		clusterLeader.Stop()
+		cancel()
 	})
 
-	for isElected := range clusterLeader.Election() {
+	for isElected := range clusterLeader.Election(ctx) {
 		if isElected {
 			t.Log("leader")
 		} else {

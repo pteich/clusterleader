@@ -1,6 +1,7 @@
 package clusterleader
 
 import (
+	"context"
 	"net"
 	"sync"
 	"time"
@@ -24,9 +25,8 @@ type Clusterleader struct {
 	waitTime     time.Duration
 }
 
-// NewClusterleader returns a new Clusterleader instance with a given consul connection
-func NewClusterleader(consulClient *api.Client, key string, node string, waitTime time.Duration) (*Clusterleader, error) {
-
+// New returns a new Clusterleader instance with a given consul connection
+func New(consulClient *api.Client, key string, node string, waitTime time.Duration) (*Clusterleader, error) {
 	return &Clusterleader{
 		consulClient: consulClient,
 		key:          key,
@@ -40,9 +40,8 @@ func NewClusterleader(consulClient *api.Client, key string, node string, waitTim
 
 }
 
-// NewClusterleaderWithDefaultClient uses a default Consul client (which can also be set using Consul env variables)
-func NewClusterleaderWithDefaultClient(key string, node string, waitTime time.Duration) (*Clusterleader, error) {
-
+// NewDefaultClient uses a default Consul client (which can also be set using Consul env variables)
+func NewWithDefaultClient(key string, node string, waitTime time.Duration) (*Clusterleader, error) {
 	dialContext := (&net.Dialer{
 		Timeout:   30 * time.Second,
 		KeepAlive: 15 * time.Second,
@@ -56,19 +55,17 @@ func NewClusterleaderWithDefaultClient(key string, node string, waitTime time.Du
 		return nil, errors.Wrap(err, "could not initialize Consul client")
 	}
 
-	return NewClusterleader(consulClient, key, node, waitTime)
+	return New(consulClient, key, node, waitTime)
 }
 
 // Election returns a channel that signals if we are leader or not
-func (cl *Clusterleader) Election() <-chan bool {
-
+func (cl *Clusterleader) Election(ctx context.Context) <-chan bool {
 	go func() {
-
 		defer close(cl.electionChan)
 		defer close(cl.errorChan)
+		defer close(cl.stopChan)
 
 		for {
-
 			// first set non leader status
 			// if we can not get the lock, getLock() blocks until
 			// we get it or returns an error and tries again after
@@ -87,6 +84,8 @@ func (cl *Clusterleader) Election() <-chan bool {
 			// wait for either the lock goes away or we get
 			// an explicit stop
 			select {
+			case <-ctx.Done():
+				return
 			case <-cl.lockChan:
 				cl.lock.Unlock()
 
@@ -111,13 +110,7 @@ func (cl *Clusterleader) IsLeader() bool {
 	return cl.leader
 }
 
-// Stop ends the leader election
-func (cl *Clusterleader) Stop() {
-	close(cl.stopChan)
-}
-
 func (cl *Clusterleader) getLock() error {
-
 	options := &api.LockOptions{
 		Key:        cl.key,
 		Value:      []byte(cl.node),
