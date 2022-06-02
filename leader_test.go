@@ -5,14 +5,11 @@ import (
 	"time"
 
 	"github.com/hashicorp/consul/api"
-
-	"github.com/hashicorp/consul/testutil"
-
+	"github.com/hashicorp/consul/sdk/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestClusterleader_Election(t *testing.T) {
-
 	testConsul, err := testutil.NewTestServerConfigT(t, func(c *testutil.TestServerConfig) {
 		c.Bootstrap = true
 		c.ACLDefaultPolicy = "allow"
