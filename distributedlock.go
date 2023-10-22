@@ -49,7 +49,7 @@ func NewDistributedLockWithDefaultClient(prefix string, sessionTTL time.Duration
 }
 
 // Lock tries once to acquire the lock or return an error if it could not get it
-func (dl *DistributedLock) Lock(key string, value string, lockWaitTime time.Duration) error {
+func (dl *DistributedLock) Lock(key string, value string, lockWaitTime time.Duration) (<-chan struct{}, error) {
 	options := &api.LockOptions{
 		Key:          dl.prefix + "/" + key,
 		Value:        []byte(value),
@@ -61,23 +61,23 @@ func (dl *DistributedLock) Lock(key string, value string, lockWaitTime time.Dura
 
 	lock, err := dl.consulClient.LockOpts(options)
 	if err != nil {
-		return errors.Wrap(err, "could not prepare lock")
+		return nil, errors.Wrap(err, "could not prepare lock")
 	}
 
 	closeChan, err := lock.Lock(nil)
 	if err != nil {
-		return errors.Wrap(err, "could not acquire lock")
+		return nil, errors.Wrap(err, "could not acquire lock")
 	}
 
 	if closeChan == nil {
-		return errors.New("already locked")
+		return nil, errors.New("already locked")
 	}
 
 	dl.mutex.Lock()
 	dl.locks[key] = lock
 	dl.mutex.Unlock()
 
-	return nil
+	return closeChan, nil
 }
 
 // Unlock releases a specific lock
