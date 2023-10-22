@@ -15,22 +15,23 @@ type DistributedLock struct {
 	mutex        sync.Mutex
 	consulClient *api.Client
 	prefix       string
-	node         string
+	value        string
+	sessionTTL   time.Duration
 	locks        map[string]*api.Lock
 }
 
 // NewDistributedLock returns an instance with a given Consul client
-func NewDistributedLock(consulClient *api.Client, prefix string, node string) (*DistributedLock, error) {
+func NewDistributedLock(consulClient *api.Client, prefix string, sessionTTL time.Duration) (*DistributedLock, error) {
 	return &DistributedLock{
 		consulClient: consulClient,
 		prefix:       strings.TrimSuffix(prefix, "/"),
-		node:         node,
 		locks:        make(map[string]*api.Lock),
+		sessionTTL:   sessionTTL,
 	}, nil
 }
 
 // NewDistributedLockWithDefaultClient uses a Consul client with default settings (or values from ENV)
-func NewDistributedLockWithDefaultClient(prefix string, node string) (*DistributedLock, error) {
+func NewDistributedLockWithDefaultClient(prefix string, sessionTTL time.Duration) (*DistributedLock, error) {
 	dialContext := (&net.Dialer{
 		Timeout:   30 * time.Second,
 		KeepAlive: 15 * time.Second,
@@ -44,17 +45,18 @@ func NewDistributedLockWithDefaultClient(prefix string, node string) (*Distribut
 		return nil, errors.Wrap(err, "could not initialize Consul client")
 	}
 
-	return NewDistributedLock(consulClient, prefix, node)
+	return NewDistributedLock(consulClient, prefix, sessionTTL)
 }
 
 // Lock tries once to acquire the lock or return an error if it could not get it
-func (dl *DistributedLock) Lock(key string) error {
+func (dl *DistributedLock) Lock(key string, value string, lockWaitTime time.Duration) error {
 	options := &api.LockOptions{
 		Key:          dl.prefix + "/" + key,
-		Value:        []byte(dl.node),
+		Value:        []byte(value),
 		LockTryOnce:  true,
-		SessionTTL:   "10s",
-		LockWaitTime: 15 * time.Millisecond,
+		SessionName:  dl.prefix + "-" + key,
+		SessionTTL:   dl.sessionTTL.String(),
+		LockWaitTime: lockWaitTime,
 	}
 
 	lock, err := dl.consulClient.LockOpts(options)
@@ -92,6 +94,7 @@ func (dl *DistributedLock) Unlock(key string) error {
 	if err != nil {
 		return errors.Wrap(err, "could not unlock")
 	}
+
 	err = lock.Destroy()
 	if err != nil {
 		return errors.Wrap(err, "could not remove lock")
